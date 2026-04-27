@@ -87,7 +87,7 @@ const Dashboard = ({ user, onLogout }) => {
 
   // Check Time Constraints
   // COMMENTED OUT FOR TESTING - Remove comments to re-enable time restrictions
-  /*
+  
   const checkTimeConstraint = (type) => {
     const h = new Date().getHours();
     
@@ -105,7 +105,7 @@ const Dashboard = ({ user, onLogout }) => {
     }
     return null;
   };
-  */
+  
 
   const handleAttendanceClick = (actionType) => {
     if (loading || !user?.email) return;
@@ -115,13 +115,13 @@ const Dashboard = ({ user, onLogout }) => {
     const todayRecord = dtrData.find(row => row.Date === todayStr);
 
     // COMMENTED OUT FOR TESTING
-    /*
+    
     const timeError = checkTimeConstraint(actionType);
     if (timeError) {
       showError(timeError);
       return;
     }
-    */
+    
 
     if (actionType !== "Time In") {
       if (!todayRecord || !todayRecord.TimeIn || todayRecord.TimeIn === '--:--') {
