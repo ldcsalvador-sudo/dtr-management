@@ -6,12 +6,13 @@ import {
   MdBarChart, MdHistory, MdKeyboardArrowDown,
   MdRefresh, MdErrorOutline, MdFileDownload,
   MdTableChart, MdPictureAsPdf, MdDescription,
-  MdWarning, MdDateRange
+  MdWarning, MdDateRange, MdOutlineAccessTimeFilled,MdTimerOff 
 } from 'react-icons/md';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZL1d6Duykgezfln6xybS6ZgbJe4tOsHyj-qNMqtnuSNCuiLaMcSBjkJSWTrApdtYt/exec';
 
 const Dashboard = ({ user, onLogout }) => {
+  const [timeOffset, setTimeOffset] = useState(0); 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,12 +20,12 @@ const Dashboard = ({ user, onLogout }) => {
   
   const [period, setPeriod] = useState(new Date().getDate() <= 15 ? "1st Half" : "2nd Half"); 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // NEW YEAR STATE
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); 
   
   const [showToast, setShowToast] = useState(null);
   const [errorToast, setErrorToast] = useState(null); 
   const [isMonthOpen, setIsMonthOpen] = useState(false);
-  const [isYearOpen, setIsYearOpen] = useState(false); // NEW YEAR DROPDOWN
+  const [isYearOpen, setIsYearOpen] = useState(false); 
   const [isExportOpen, setIsExportOpen] = useState(false);
   
   const [confirmDialog, setConfirmDialog] = useState({ show: false, action: null });
@@ -38,8 +39,28 @@ const Dashboard = ({ user, onLogout }) => {
   const yearRef = useRef(null);
 
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  // Generate a dynamic list of years (e.g., from 2023 up to 5 years into the future)
   const yearsList = Array.from(new Array(8), (val, index) => new Date().getFullYear() - 2 + index);
+
+  // --- MATH HELPERS ---
+  const parseTimeToDecimal = (timeStr) => {
+    if (!timeStr || timeStr === '--:--' || typeof timeStr !== 'string') return null;
+    try {
+      const [time, modifier] = timeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (modifier === 'PM' && hours < 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+      return hours + (minutes / 60);
+    } catch (e) { return null; }
+  };
+
+  const formatDecimalToTime = (decimal) => {
+    if (decimal === null || isNaN(decimal)) return "0:00";
+    const isNegative = decimal < 0;
+    const absValue = Math.abs(decimal);
+    const hours = Math.floor(absValue);
+    const minutes = Math.round((absValue - hours) * 60);
+    return `${isNegative ? '-' : ''}${hours}:${minutes.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -59,6 +80,10 @@ const Dashboard = ({ user, onLogout }) => {
       const result = await response.json();
       if (result.success) {
         setDtrData(result.dtr || []);
+        if (result.serverTime) {
+          const offset = new Date(result.serverTime).getTime() - Date.now();
+          setTimeOffset(offset);
+        }
         return true;
       } else {
         if (result.message === "Tab not found" || result.message === "Error opening sheet") {
@@ -75,9 +100,12 @@ const Dashboard = ({ user, onLogout }) => {
   }, [user]);
 
   useEffect(() => {
-    const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
-    fetchDTR();
+    const clockTimer = setInterval(() => setCurrentTime(new Date(Date.now() + timeOffset)), 1000);
     return () => clearInterval(clockTimer);
+  }, [timeOffset]);
+
+  useEffect(() => {
+    fetchDTR();
   }, [fetchDTR]);
 
   const showError = (msg) => {
@@ -85,60 +113,91 @@ const Dashboard = ({ user, onLogout }) => {
     setTimeout(() => setErrorToast(null), 4000);
   };
 
-  // Check Time Constraints
-  // COMMENTED OUT FOR TESTING - Remove comments to re-enable time restrictions
-  
-  const checkTimeConstraint = (type) => {
-    const h = new Date().getHours();
-    
+  const checkTimeConstraint = (type,h) => {
     if (type === "Time In") {
-      // Allow 6 AM - 8:59 AM OR 12 PM - 12:59 PM (Half Day)
-      if (!((h >= 6 && h < 9) || h === 12)) {
-        return "Time In allowed only between 6:00 AM - 9:00 AM or 12:00 PM - 1:00 PM.";
-      }
+      if (!(h >= 7 )) return "Time In allowed only 7:00 AM onwards.";
     }
-    if ((type === "Break Out" || type === "Break In") && !(h >= 12 && h < 14)) {
-      return "Break logs are only allowed between 12:00 PM and 2:00 PM.";
+    if ((type === "Break Out" || type === "Break In") && !(h >= 12 && h <= 13)) {
+      return "Break logs are only allowed between 12:00 PM and 1:00 PM.";
     }
-    if (type === "Time Out" && !(h >= 17 || h < 5)) {
-      return "Time Out is only allowed between 5:00 PM and 5:00 AM.";
+    if (type === "Time Out") {
+      if (!(h >= 12 && h <= 18)) return "Time Out is allowed only between 12:00 PM and 6:00 PM.";
     }
     return null;
   };
-  
 
   const handleAttendanceClick = (actionType) => {
     if (loading || !user?.email) return;
 
-    const today = new Date();
-    const todayStr = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')}/${today.getFullYear()}`;
+    // Force todayStr to be GMT+8 (MM/DD/YYYY)
+    const todayStr = currentTime.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric'
+    });
+
     const todayRecord = dtrData.find(row => row.Date === todayStr);
 
-    // COMMENTED OUT FOR TESTING
-    
-    const timeError = checkTimeConstraint(actionType);
+    // Get current hour in GMT+8 for the constraint check
+    const currentManilaHour = parseInt(new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      hour12: false
+    }).format(currentTime));
+
+    // Passing the GMT+8 hour to your constraint function
+    const timeError = checkTimeConstraint(actionType, currentManilaHour);
     if (timeError) {
       showError(timeError);
       return;
     }
-    
 
-    if (actionType !== "Time In") {
-      if (!todayRecord || !todayRecord.TimeIn || todayRecord.TimeIn === '--:--') {
-        showError("Invalid: Please Time In first");
-        return;
-      }
-      const isHalfDay = todayRecord.TimeIn.toLowerCase().includes('12:') && todayRecord.TimeIn.toLowerCase().includes('pm');
-      if (isHalfDay && (actionType === "Break Out" || actionType === "Break In")) {
-        showError("Breaks are not required for Half-Day PM shifts.");
-        return;
-      }
-    } else {
-      if (todayRecord && todayRecord.TimeIn && todayRecord.TimeIn !== '--:--') {
-        showError("You have already Timed In today.");
+    if (actionType === "Time In") {
+    if (todayRecord && todayRecord.TimeIn && todayRecord.TimeIn !== '--:--') {
+      showError("You have already Timed In today.");
+      return;
+    }
+  } 
+  
+  else {
+    // For all actions other than "Time In", they MUST have Timed In first
+    if (!todayRecord || !todayRecord.TimeIn || todayRecord.TimeIn === '--:--') {
+      showError("Invalid: Please Time In first");
+      return;
+    }
+
+    // Specific "Log Once" checks for other actions
+    if (actionType === "Time Out") {
+      if (todayRecord.TimeOut && todayRecord.TimeOut !== '--:--') {
+        showError("You have already Timed Out today.");
         return;
       }
     }
+
+    if (actionType === "Break Out") {
+      if (todayRecord.BreakOut && todayRecord.BreakOut !== '--:--') {
+        showError("You have already logged Break Out today.");
+        return;
+      }
+      // Half-day PM check 
+      if (todayRecord.TimeIn.toLowerCase().includes('12:') && todayRecord.TimeIn.toLowerCase().includes('pm')) {
+        showError("Breaks are not required for Half-Day PM shifts.");
+        return;
+      }
+    }
+
+    if (actionType === "Break In") {
+      if (todayRecord.BreakIn && todayRecord.BreakIn !== '--:--') {
+        showError("You have already logged Break In today.");
+        return;
+      }
+      if (!todayRecord.BreakOut || todayRecord.BreakOut === '--:--') {
+        showError("Invalid: Please Break Out first.");
+        return;
+      }
+    }
+  }
 
     setConfirmDialog({ show: true, action: actionType });
   };
@@ -149,11 +208,19 @@ const Dashboard = ({ user, onLogout }) => {
     setLoading(true);
 
     try {
+      // It is good practice to send the request. 
+      // Note: The Google Script side (Backend) should also use GMT+8 
+      // when it generates the timestamp in the sheet.
       await fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'log_dtr', email: user.email, division: user.division, type: actionType }),
+        body: JSON.stringify({ 
+          action: 'log_dtr', 
+          email: user.email, 
+          division: user.division, 
+          type: actionType 
+        }),
       });
 
       setTimeout(async () => {
@@ -170,58 +237,81 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  // Data Filtering (Includes Year)
+  // --- REVISED FILTERING & CALCULATION LOGIC ---
   const filteredData = dtrData.filter(row => {
     if (!row.Date) return false;
-    // Format is MM/dd/yyyy from backend
     const [m, d, y] = row.Date.split('/');
     const isCorrectMonth = parseInt(m) === selectedMonth;
-    const isCorrectYear = parseInt(y) === selectedYear; // Check Year
-    const isCorrectPeriod = period === "1st Half" ? parseInt(d) <= 15 : parseInt(d) > 15;
+    const isCorrectYear = parseInt(y) === selectedYear; 
+    const isCorrectPeriod = period === "Whole" ? true : (period === "1st Half" ? parseInt(d) <= 15 : parseInt(d) > 15);
     return isCorrectMonth && isCorrectYear && isCorrectPeriod;
+  }).map(row => {
+    const tin = parseTimeToDecimal(row.TimeIn);
+    const tout = parseTimeToDecimal(row.TimeOut);
+    
+    let totalStr = "0:00";
+    let diffStr = "0:00";
+    let rawTotal = 0;
+
+    if (tin !== null && tout !== null) {
+      rawTotal = tout - tin - 1; // Subtract 1 hour for lunch break
+      const rawDiff = (rawTotal - 8);
+      totalStr = formatDecimalToTime(rawTotal);
+      diffStr = formatDecimalToTime(rawDiff);
+    }
+
+    return { ...row, DisplayTotal: totalStr, DisplayDiff: diffStr, RawTotalNum: rawTotal };
   });
 
-  const totalHours = filteredData.reduce((acc, row) => {
-    if (!row.Total || !row.Total.includes(':')) return acc;
-    const [h, m] = row.Total.split(':');
-    return acc + parseInt(h) + (parseInt(m) / 60);
-  }, 0);
+  const totalHours = filteredData.reduce((acc, row) => acc + row.RawTotalNum, 0);
 
-  const exportToCSV = () => {
-    const headers = ["Date", "Time In", "Break Out", "Break In", "Time Out", "Total", "Diff"];
-    const rows = filteredData.map(r => [r.Date, r.TimeIn, r.BreakOut, r.BreakIn, r.TimeOut, r.Total, r.Diff]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `DTR_${user.username}_${months[selectedMonth-1]}_${selectedYear}.csv`;
-    link.click();
-    setIsExportOpen(false);
-  };
+  // --- EXPORTS ---
+  const periodLabel = period === "Whole" ? "Whole_Month" : period.replace(" ", "_");
 
-  const exportToXLSX = () => {
-    let xml = '<?xml version="1.0"?><ss:Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><ss:Worksheet ss:Name="DTR"><ss:Table>';
-    const headers = ["Date", "Time In", "Break Out", "Break In", "Time Out", "Total", "Diff"];
-    xml += '<ss:Row>' + headers.map(h => `<ss:Cell><ss:Data ss:Type="String">${h}</ss:Data></ss:Cell>`).join('') + '</ss:Row>';
-    filteredData.forEach(r => {
-      xml += `<ss:Row>${[r.Date, r.TimeIn, r.BreakOut, r.BreakIn, r.TimeOut, r.Total, r.Diff].map(val => `<ss:Cell><ss:Data ss:Type="String">${val || ''}</ss:Data></ss:Cell>`).join('')}</ss:Row>`;
-    });
-    xml += '</ss:Table></ss:Worksheet></ss:Workbook>';
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `DTR_${user.username}_${months[selectedMonth-1]}_${selectedYear}.xls`;
-    link.click();
-    setIsExportOpen(false);
-  };
+const exportToCSV = () => {
+  const headers = ["Date", "Time In", "Break Out", "Break In", "Time Out", "Total", "Diff"];
+  const rows = filteredData.map(r => [r.Date, r.TimeIn, r.BreakOut, r.BreakIn, r.TimeOut, r.DisplayTotal, r.DisplayDiff]);
+  const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  
+  // Updated filename with periodLabel
+  link.download = `DTR_${user.username}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.csv`;
+  
+  link.click();
+  setIsExportOpen(false);
+};
 
-  const triggerPDFPrint = () => {
-    setIsExportOpen(false);
-    setTimeout(() => {
-        document.title = `DTR_${user.username}_${months[selectedMonth-1]}_${selectedYear}`;
-        window.print();
-    }, 200);
-  };
+const exportToXLSX = () => {
+  let xml = '<?xml version="1.0"?><ss:Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><ss:Worksheet ss:Name="DTR"><ss:Table>';
+  const headers = ["Date", "Time In", "Break Out", "Break In", "Time Out", "Total", "Diff"];
+  xml += '<ss:Row>' + headers.map(h => `<ss:Cell><ss:Data ss:Type="String">${h}</ss:Data></ss:Cell>`).join('') + '</ss:Row>';
+  filteredData.forEach(r => {
+    xml += `<ss:Row>${[r.Date, r.TimeIn, r.BreakOut, r.BreakIn, r.TimeOut, r.DisplayTotal, r.DisplayDiff].map(val => `<ss:Cell><ss:Data ss:Type="String">${val || ''}</ss:Data></ss:Cell>`).join('')}</ss:Row>`;
+  });
+  xml += '</ss:Table></ss:Worksheet></ss:Workbook>';
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  
+  // Updated filename with periodLabel
+  link.download = `DTR_${user.username}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.xls`;
+  
+  link.click();
+  setIsExportOpen(false);
+};
+
+const triggerPDFPrint = () => {
+  setIsExportOpen(false);
+  // Using the actual 'period' variable for a cleaner look in the PDF title (e.g., "1st Half")
+  const displayPeriod = period === "Whole" ? "Whole Month" : period;
+  
+  setTimeout(() => {
+      document.title = `DTR_${user.username}_${displayPeriod}_of_${months[selectedMonth-1]}_${selectedYear}`;
+      window.print();
+  }, 200);
+};
 
   const handleMonthToggle = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -243,7 +333,6 @@ const Dashboard = ({ user, onLogout }) => {
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 md:p-8 min-h-screen bg-[#F8FAFC]">
-      {/* Strict Print CSS for pristine PDF layout */}
       <style>{`
         @media print {
           @page { size: A4 portrait; margin: 15mm; }
@@ -251,47 +340,17 @@ const Dashboard = ({ user, onLogout }) => {
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .max-w-7xl { max-width: 100% !important; padding: 0 !important; }
           .bg-white { border: none !important; box-shadow: none !important; }
-          
-          .print-header { 
-            display: flex !important; 
-            justify-content: space-between; 
-            align-items: flex-end;
-            border-bottom: 3px solid #073763;
-            padding-bottom: 10px;
-            margin-bottom: 25px;
-          }
-          .print-card {
-            background-color: #073763 !important;
-            color: white !important;
-            padding: 15px !important;
-            border-radius: 12px !important;
-            margin-bottom: 20px !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-          }
+          .print-header { display: flex !important; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #073763; padding-bottom: 10px; margin-bottom: 25px; }
+          .print-card { background-color: #073763 !important; color: white !important; padding: 15px !important; border-radius: 12px !important; margin-bottom: 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
           table { width: 100% !important; border-collapse: collapse !important; }
           th { background-color: #f1f5f9 !important; color: #073763 !important; font-size: 11px !important; text-transform: uppercase !important; }
           th, td { border: 1px solid #cbd5e1 !important; padding: 10px !important; font-size: 11px !important; }
-          .signature-section {
-            display: flex !important;
-            justify-content: space-between;
-            margin-top: 50px;
-          }
-          .signature-line {
-            width: 40%;
-            border-top: 1px solid black;
-            text-align: center;
-            font-size: 10px;
-            font-weight: bold;
-            padding-top: 5px;
-            text-transform: uppercase;
-          }
+          .signature-section { display: flex !important; justify-content: space-between; margin-top: 50px; }
+          .signature-line { width: 40%; border-top: 1px solid black; text-align: center; font-size: 10px; font-weight: bold; padding-top: 5px; text-transform: uppercase; }
         }
         .print-header, .print-card .print-show, .signature-section { display: none; }
       `}</style>
       
-      {/* CONFIRMATION DIALOG */}
       <AnimatePresence>
         {confirmDialog.show && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm no-print">
@@ -323,18 +382,16 @@ const Dashboard = ({ user, onLogout }) => {
         )}
       </AnimatePresence>
 
-      {/* PDF Header - Visible only when printing to PDF */}
       <div className="print-header">
         <div>
             <h1 className="text-2xl font-black text-[#073763] uppercase">Daily Time Record</h1>
-            <p className="text-sm font-bold text-slate-500 uppercase">{user?.username} • {user?.email} • {user?.division} Division</p>
+            <p className="text-sm font-bold text-slate-500 uppercase">{user?.username} • {user?.email} • {user?.division} </p>
         </div>
         <div className="text-right">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{months[selectedMonth-1]} {selectedYear} ({period})</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{months[selectedMonth-1]} {selectedYear} ({period === "Whole" ? "Whole Month" : period})</p>
         </div>
       </div>
 
-      {/* Top Nav (No Print) */}
       <nav className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-6 no-print">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 rounded-2xl bg-[#073763] flex items-center justify-center text-white text-2xl font-black italic shadow-lg">
@@ -342,39 +399,75 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
           <div>
             <h1 className="text-xl font-black text-[#073763] uppercase italic">Welcome, {user?.username || 'User'}</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user?.division} Division</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user?.division} </p>
           </div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">
-            <p className="text-2xl font-black tabular-nums text-[#073763]">{currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+            <div className="text-right hidden sm:block">
+              {/* GMT+8 Time Display */}
+              <p className="text-2xl font-black tabular-nums text-[#073763]">
+                {currentTime.toLocaleTimeString('en-US', { 
+                  timeZone: 'Asia/Manila', 
+                  hour: 'numeric', 
+                  minute: '2-digit', 
+                  hour12: true 
+                })}
+              </p>
+              
+              {/* GMT+8 Date Display */}
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {currentTime.toLocaleDateString('en-US', { 
+                  timeZone: 'Asia/Manila',
+                  weekday: 'long', 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                })}
+              </p>
+            </div>
           </div>
-          <button onClick={onLogout} className="px-6 py-3 bg-slate-50 text-slate-600 rounded-2xl text-[10px] font-black uppercase hover:text-red-500 border border-slate-100 transition-colors">Log Out</button>
-        </div>
+              <motion.button
+                onClick={onLogout}
+                whileHover="hover" // This triggers the "hover" variant in children
+                whileTap={{ scale: 0.95 }}
+                className="group flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 rounded-2xl text-[10px] font-black uppercase border border-slate-100 transition-all hover:text-red-500 hover:bg-red-50"
+              >
+                <span>Log Out</span>
+
+                <motion.div
+                  variants={{
+                    hover: { x: 4, transition: { type: "spring", stiffness: 300 } }
+                  }}
+                >
+                  <MdLogout size={18} />
+                </motion.div>
+              </motion.button>
+          </div>
       </nav>
 
-      {/* Action Buttons & Totals */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 no-print">
         <div className="lg:col-span-7 bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100">
           <h3 className="text-[11px] font-black text-[#073763] uppercase tracking-[0.4em] mb-10 flex items-center gap-2"><MdAccessTime className="text-lg" /> Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <ActionButton label="Time In" Icon={MdRadioButtonChecked} onClick={() => handleAttendanceClick("Time In")} disabled={loading} color="#073763" />
+            <ActionButton label="Time In" Icon={MdOutlineAccessTimeFilled} onClick={() => handleAttendanceClick("Time In")} disabled={loading} color="#073763" />
             <ActionButton label="Break Out" Icon={MdCoffee} onClick={() => handleAttendanceClick("Break Out")} disabled={loading} color="#64748b" />
             <ActionButton label="Break In" Icon={MdRestaurant} onClick={() => handleAttendanceClick("Break In")} disabled={loading} color="#64748b" />
             <ActionButton label="Time Out" Icon={MdLogout} onClick={() => handleAttendanceClick("Time Out")} disabled={loading} color="#ef4444" />
           </div>
         </div>
 
-        {/* This block styles slightly differently when printed to PDF */}
         <div className="lg:col-span-5 bg-[#073763] rounded-[3rem] p-10 text-white shadow-2xl flex flex-col justify-between print-card">
           <div className="flex justify-between items-center w-full">
             <div>
               <h3 className="text-[10px] font-black opacity-40 uppercase tracking-[0.4em] mb-6 no-print">Period Efficiency</h3>
-              <p className="text-5xl font-black tracking-tighter">{totalHours.toFixed(1)} <span className="text-sm opacity-50 font-medium">hrs</span></p>
-              <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-1">Total Hours for {months[selectedMonth-1]} {selectedYear}</p>
+                <p className="text-5xl font-black tracking-tighter">
+                  {Math.floor(totalHours)} 
+                  <span className="text-sm opacity-50 font-medium ml-1 mr-2">hrs</span>
+                  {Math.round((totalHours % 1) * 60)} 
+                  <span className="text-sm opacity-50 font-medium ml-1">mins</span>
+                </p>              <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-1">Total Hours for {months[selectedMonth-1]} {selectedYear}</p>
             </div>
-            {/* Show this only on PDF Print */}
             <div className="print-show hidden">
                 <p className="text-4xl font-black">{filteredData.length}</p>
                 <p className="text-[8px] font-bold uppercase tracking-widest">Days Logged</p>
@@ -387,7 +480,6 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Main Table Area */}
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-10 border-b border-slate-50 flex flex-wrap justify-between items-center gap-8 no-print">
           <div className="flex items-center gap-4">
@@ -401,15 +493,13 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
           
           <div className="flex items-center gap-2 bg-slate-100/50 p-2 rounded-[1.5rem]">
-            
-            {/* MONTH FILTER */}
             <div className="relative" ref={monthRef}>
               <button onClick={handleMonthToggle} className="flex items-center gap-2 text-[10px] font-black uppercase px-4 py-2 text-[#073763] hover:opacity-70">
                 {months[selectedMonth - 1]} <MdKeyboardArrowDown className={`transition-transform ${isMonthOpen ? 'rotate-180' : ''}`} />
               </button>
               <AnimatePresence>
                 {isMonthOpen && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ position: 'fixed', top: monthPos.top, left: monthPos.left, zIndex: 9999 }} className="bg-white border border-slate-100 shadow-2xl rounded-[1.5rem] p-3 grid grid-cols-3 gap-2 min-w-[240px]">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', zIndex: 9999 }} className="bg-white border border-slate-100 shadow-2xl rounded-[1.5rem] p-3 grid grid-cols-3 gap-2 min-w-[240px]">
                     {months.map((m, i) => (
                       <button key={i} onClick={() => { setSelectedMonth(i + 1); setIsMonthOpen(false); }} className={`text-[9px] font-bold p-2 rounded-lg uppercase ${selectedMonth === i + 1 ? 'bg-[#073763] text-white' : 'hover:bg-slate-50 text-slate-400'}`}>{m}</button>
                     ))}
@@ -418,14 +508,13 @@ const Dashboard = ({ user, onLogout }) => {
               </AnimatePresence>
             </div>
 
-            {/* YEAR FILTER */}
             <div className="relative border-l border-slate-200 pl-2" ref={yearRef}>
               <button onClick={handleYearToggle} className="flex items-center gap-2 text-[10px] font-black uppercase px-4 py-2 text-[#073763] hover:opacity-70">
                 {selectedYear} <MdDateRange />
               </button>
               <AnimatePresence>
                 {isYearOpen && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ position: 'fixed', top: yearPos.top, left: yearPos.left, zIndex: 9999 }} className="bg-white border border-slate-100 shadow-2xl rounded-[1.5rem] p-3 grid grid-cols-2 gap-2 min-w-[160px]">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', zIndex: 9999 }} className="bg-white border border-slate-100 shadow-2xl rounded-[1.5rem] p-3 grid grid-cols-2 gap-2 min-w-[160px]">
                     {yearsList.map((y, i) => (
                       <button key={i} onClick={() => { setSelectedYear(y); setIsYearOpen(false); }} className={`text-[9px] font-bold p-2 rounded-lg ${selectedYear === y ? 'bg-[#073763] text-white' : 'hover:bg-slate-50 text-slate-400'}`}>{y}</button>
                     ))}
@@ -434,22 +523,20 @@ const Dashboard = ({ user, onLogout }) => {
               </AnimatePresence>
             </div>
 
-            {/* HALF FILTER */}
             <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl ml-2">
-              <button onClick={() => setPeriod("1st Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "1st Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400'}`}>1st</button>
-              <button onClick={() => setPeriod("2nd Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "2nd Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400'}`}>2nd</button>
+              <button onClick={() => setPeriod("1st Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "1st Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>1st</button>
+              <button onClick={() => setPeriod("2nd Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "2nd Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>2nd</button>
+              <button onClick={() => setPeriod("Whole")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "Whole" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>Whole</button>
             </div>
             
-            {/* EXPORT MENU */}
             <div className="relative border-l border-slate-200 pl-3 ml-2" ref={exportRef}>
               <button onClick={handleExportToggle} className="flex items-center gap-2 px-4 py-2 bg-[#073763] text-white rounded-xl shadow-lg hover:shadow-blue-900/20 active:scale-95 group">
                 <MdFileDownload className="text-base group-hover:translate-y-0.5 transition-transform" />
                 <span className="text-[10px] font-black uppercase tracking-wider">Export</span>
               </button>
-              
               <AnimatePresence>
                 {isExportOpen && (
-                  <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 10 }} style={{ position: 'fixed', top: exportPos.top, left: exportPos.left, zIndex: 9999 }} className="bg-white border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] p-3 min-w-[200px]">
+                  <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 10 }} style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 9999 }} className="bg-white border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] p-3 min-w-[200px]">
                     <div className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] px-3 mb-2">Save Copy</div>
                     <ExportItem icon={<MdPictureAsPdf className="text-red-500"/>} label="PDF Document" sub="Print Ready" onClick={triggerPDFPrint} />
                     <div className="h-px bg-slate-50 my-1"></div>
@@ -466,21 +553,36 @@ const Dashboard = ({ user, onLogout }) => {
           <table className="w-full text-left border-separate border-spacing-y-2 print:border-collapse print:border-spacing-0">
             <thead>
               <tr className="text-[9px] uppercase tracking-widest font-black text-slate-400 italic">
-                <th className="p-4">Date</th><th className="p-4 text-[#073763]">Time In</th><th className="p-4">Break Out</th><th className="p-4">Break In</th><th className="p-4">Time Out</th><th className="p-4 text-center">Net Hrs</th><th className="p-4 text-right">Diff (8h)</th>
+                <th className="p-4">Date</th>
+                <th className="p-4 text-[#073763]">Time In</th>
+                <th className="p-4">Break Out</th>
+                <th className="p-4">Break In</th>
+                <th className="p-4">Time Out</th>
+                <th className="p-4 text-center">Total</th>
+                <th className="p-4 text-right">Diff (8h)</th>
               </tr>
             </thead>
             <tbody className="text-xs">
               {filteredData.length > 0 ? filteredData.map((row, i) => (
                 <tr key={i} className="group hover:bg-slate-50 transition-colors">
                   <td className="p-4 font-black text-slate-400 group-hover:text-[#073763]">{row.Date}</td>
-                  <td className="p-4 text-[#073763] font-black">{row.TimeIn || '--:--'}</td>
+                  <td className="p-4 text-[#097969] font-black">{row.TimeIn || '--:--'}</td>
                   <td className="p-4 text-slate-400">{row.BreakOut || '--:--'}</td>
                   <td className="p-4 text-slate-400">{row.BreakIn || '--:--'}</td>
                   <td className="p-4 text-red-500 font-black">{row.TimeOut || '--:--'}</td>
-                  <td className="p-4 font-mono font-black text-center text-[#073763]">{row.Total || '0:00'}</td>
+                  <td className="p-4 font-mono font-black text-center text-[#073763]">{row.DisplayTotal}</td>
                   <td className="p-4 text-right">
-                    <span className={`px-3 py-1 rounded-lg font-black text-[10px] print:p-0 print:bg-transparent ${row.Diff?.includes('-') ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50'}`}>
-                      {row.Diff || '0:00'}
+                    <span className={`px-3 py-1 rounded-lg font-black text-[10px] print:p-0 print:bg-transparent 
+                      ${(row.DisplayDiff || '').includes('-') ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                      
+                      {/* Check if it's positive and not just a zero value */}
+                      {row.DisplayDiff && 
+                      !row.DisplayDiff.includes('-') && 
+                      row.DisplayDiff !== '0:00' && 
+                      row.DisplayDiff !== '0' && 
+                      '+'}
+                      
+                      {row.DisplayDiff}
                     </span>
                   </td>
                 </tr>
@@ -490,7 +592,6 @@ const Dashboard = ({ user, onLogout }) => {
             </tbody>
           </table>
 
-          {/* Signature Line for PDF Print */}
           <div className="signature-section print-only hidden">
               <div className="signature-line">Employee Signature</div>
               <div className="signature-line">Supervisor Approval</div>

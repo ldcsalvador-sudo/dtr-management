@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MdPerson, MdLock, MdEmail, MdArrowForward, MdCheckCircle, MdErrorOutline, MdVisibility, MdVisibilityOff, MdBusiness } from 'react-icons/md';
 
 import bgImage from '../assets/TABG.png';
-import logoImage from '../assets/TALogo.png';
+import logoImage from '../assets/FSLogo.png';
 
 const BRAND_COLOR = "#073763";
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZL1d6Duykgezfln6xybS6ZgbJe4tOsHyj-qNMqtnuSNCuiLaMcSBjkJSWTrApdtYt/exec';
@@ -92,10 +92,12 @@ const AuthTabs = ({ onAuthSuccess }) => {
                   <div className="relative">
                     <MdBusiness className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
                     <select name="division" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none appearance-none font-semibold text-slate-600">
-                      <option value="Alpha">Alpha</option>
-                      <option value="FSOD">FSOD</option>
-                      <option value="BDRP">BDRP</option>
-                      <option value="ADRP">ADRP</option>
+                      <option value="Financial Service - Office of the Director">OD</option>
+                      <option value="Financial Service - Cash Division">CD</option>   
+                      <option value="Financial Service - Budget Division for Regular Programs">BDRP</option>
+                      <option value="Financial Service - Budget Division for Special Projects">BDSP</option>
+                      <option value="Financial Service - Accounting Division for Regular Programs">ADRP</option>
+                      <option value="Financial Service - Accounting Division for Special Projects">ADSP</option>
                     </select>
                   </div>
                 </div>
