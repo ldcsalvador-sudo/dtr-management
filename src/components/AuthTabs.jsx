@@ -81,6 +81,8 @@ const AuthTabs = ({ onAuthSuccess }) => {
           <AnimatePresence>
             {activeTab === 'register' && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-4 overflow-hidden">
+                
+                {/* NEW: FULL NAME INPUT */}
                 <div className="space-y-1 mt-4">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Full Name</label>
                   <div className="relative">
@@ -140,4 +142,4 @@ const AuthTabs = ({ onAuthSuccess }) => {
   );
 };
 
-export default AuthTabs;S
+export default AuthTabs;
