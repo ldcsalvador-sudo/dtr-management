@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MdPerson, MdLock, MdEmail, MdArrowForward, MdCheckCircle, MdErrorOutline, MdVisibility, MdVisibilityOff, MdBusiness } from 'react-icons/md';
+import { MdPerson, MdLock, MdEmail, MdArrowForward, MdBusiness, MdVisibility, MdVisibilityOff, MdBadge } from 'react-icons/md';
 
 import bgImage from '../assets/TABG.png';
 import logoImage from '../assets/FSLogo.png';
 
 const BRAND_COLOR = "#073763";
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZL1d6Duykgezfln6xybS6ZgbJe4tOsHyj-qNMqtnuSNCuiLaMcSBjkJSWTrApdtYt/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzVKORLuzX2lCLU_qEfb_s9nG_yHmG4g0j-0NQwxPoZOZklR8-sB3HodKfXxeR1Cu9Z/exec';
 
 const AuthTabs = ({ onAuthSuccess }) => {
   const [activeTab, setActiveTab] = useState('login');
@@ -26,6 +26,7 @@ const AuthTabs = ({ onAuthSuccess }) => {
       password: formData.get('password'),
       email: formData.get('email') || '',
       division: formData.get('division') || 'General',
+      fullName: formData.get('fullName') || '' 
     };
 
     try {
@@ -64,7 +65,7 @@ const AuthTabs = ({ onAuthSuccess }) => {
         
         <div className="w-full flex bg-slate-100 p-1 rounded-2xl my-8">
           {['login', 'register'].map((t) => (
-            <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all ${activeTab === t ? 'bg-[#073763] text-white' : 'text-slate-400'}`}>{t}</button>
+            <button key={t} type="button" onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all ${activeTab === t ? 'bg-[#073763] text-white' : 'text-slate-400'}`}>{t}</button>
           ))}
         </div>
 
@@ -73,20 +74,29 @@ const AuthTabs = ({ onAuthSuccess }) => {
             <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Username</label>
             <div className="relative">
               <MdPerson className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input name="username" type="text" required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none" />
+              <input name="username" type="text" placeholder='Username' required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none" />
             </div>
           </div>
 
           <AnimatePresence>
             {activeTab === 'register' && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-4 overflow-hidden">
+                <div className="space-y-1 mt-4">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Full Name</label>
+                  <div className="relative">
+                    <MdBadge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <input name="fullName" type="text" required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none" placeholder="Full Name" />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Work Email</label>
                   <div className="relative">
                     <MdEmail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                    <input name="email" type="email" required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none" />
+                    <input name="email" type="email" placeholder="DSWD Email" required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none" />
                   </div>
                 </div>
+                
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Division</label>
                   <div className="relative">
@@ -109,14 +119,14 @@ const AuthTabs = ({ onAuthSuccess }) => {
             <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Password</label>
             <div className="relative">
               <MdLock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input name="password" type={showPassword ? "text" : "password"} required className="w-full pl-12 pr-12 py-4 bg-slate-50 rounded-2xl outline-none" />
+              <input name="password" placeholder="Password" type={showPassword ? "text" : "password"} required className="w-full pl-12 pr-12 py-4 bg-slate-50 rounded-2xl outline-none" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                 {showPassword ? <MdVisibilityOff /> : <MdVisibility />}
               </button>
             </div>
           </div>
 
-          <button disabled={loading} className="w-full py-5 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl mt-4 flex items-center justify-center gap-2" style={{ backgroundColor: BRAND_COLOR }}>
+          <button disabled={loading} className="w-full py-5 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl mt-4 flex items-center justify-center gap-2 transition-opacity hover:opacity-90" style={{ backgroundColor: BRAND_COLOR }}>
             {loading ? "Processing..." : (activeTab === 'login' ? "Access System" : "Create Account")}
             <MdArrowForward />
           </button>
@@ -130,4 +140,4 @@ const AuthTabs = ({ onAuthSuccess }) => {
   );
 };
 
-export default AuthTabs;
+export default AuthTabs;S

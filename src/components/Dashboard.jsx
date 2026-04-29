@@ -9,7 +9,7 @@ import {
   MdWarning, MdDateRange, MdOutlineAccessTimeFilled,MdTimerOff 
 } from 'react-icons/md';
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZL1d6Duykgezfln6xybS6ZgbJe4tOsHyj-qNMqtnuSNCuiLaMcSBjkJSWTrApdtYt/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzVKORLuzX2lCLU_qEfb_s9nG_yHmG4g0j-0NQwxPoZOZklR8-sB3HodKfXxeR1Cu9Z/exec';
 
 const Dashboard = ({ user, onLogout }) => {
   const [timeOffset, setTimeOffset] = useState(0); 
@@ -118,7 +118,7 @@ const Dashboard = ({ user, onLogout }) => {
       if (!(h >= 7 )) return "Time In allowed only 7:00 AM onwards.";
     }
     if ((type === "Break Out" || type === "Break In") && !(h >= 12 && h <= 13)) {
-      return "Break logs are only allowed between 12:00 PM and 1:00 PM.";
+      return "Break logs are only allowed between 12:01 PM and 12:59 PM.";
     }
     if (type === "Time Out") {
       if (!(h >= 12 && h <= 18)) return "Time Out is allowed only between 12:00 PM and 6:00 PM.";
@@ -277,7 +277,7 @@ const exportToCSV = () => {
   link.href = URL.createObjectURL(blob);
   
   // Updated filename with periodLabel
-  link.download = `DTR_${user.username}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.csv`;
+  link.download = `DTR_${user.fullName}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.csv`;
   
   link.click();
   setIsExportOpen(false);
@@ -296,7 +296,7 @@ const exportToXLSX = () => {
   link.href = URL.createObjectURL(blob);
   
   // Updated filename with periodLabel
-  link.download = `DTR_${user.username}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.xls`;
+  link.download = `DTR_${user.fullName}_${periodLabel}_${months[selectedMonth-1]}_${selectedYear}.xls`;
   
   link.click();
   setIsExportOpen(false);
@@ -308,7 +308,7 @@ const triggerPDFPrint = () => {
   const displayPeriod = period === "Whole" ? "Whole Month" : period;
   
   setTimeout(() => {
-      document.title = `DTR_${user.username}_${displayPeriod}_of_${months[selectedMonth-1]}_${selectedYear}`;
+      document.title = `DTR_${user.fullName}_${displayPeriod}_of_${months[selectedMonth-1]}_${selectedYear}`;
       window.print();
   }, 200);
 };
@@ -385,7 +385,7 @@ const triggerPDFPrint = () => {
       <div className="print-header">
         <div>
             <h1 className="text-2xl font-black text-[#073763] uppercase">Daily Time Record</h1>
-            <p className="text-sm font-bold text-slate-500 uppercase">{user?.username} • {user?.email} • {user?.division} </p>
+            <p className="text-sm font-bold text-slate-500 uppercase">{user?.fullName} • {user?.email} • {user?.division} </p>
         </div>
         <div className="text-right">
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{months[selectedMonth-1]} {selectedYear} ({period === "Whole" ? "Whole Month" : period})</p>
@@ -398,7 +398,7 @@ const triggerPDFPrint = () => {
             {user?.username?.charAt(0).toUpperCase() || "U"}
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#073763] uppercase italic">Welcome, {user?.username || 'User'}</h1>
+            <h1 className="text-xl font-black text-[#073763] uppercase italic">Welcome, {user?.fullName || 'User'}</h1>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user?.division} </p>
           </div>
         </div>
