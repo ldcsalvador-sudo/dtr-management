@@ -524,8 +524,8 @@ const triggerPDFPrint = () => {
             </div>
 
             <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl ml-2">
-              <button onClick={() => setPeriod("1st Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "1st Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>1st</button>
-              <button onClick={() => setPeriod("2nd Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "2nd Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>2nd</button>
+              <button onClick={() => setPeriod("1st Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "1st Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>1st Half</button>
+              <button onClick={() => setPeriod("2nd Half")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "2nd Half" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>2nd Half</button>
               <button onClick={() => setPeriod("Whole")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${period === "Whole" ? 'bg-white shadow-sm text-[#073763]' : 'text-slate-400 hover:text-slate-600'}`}>Whole</button>
             </div>
             
